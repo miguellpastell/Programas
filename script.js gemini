@@ -1,0 +1,198 @@
+/**
+ * EcoMonitor - Lógica da SPA e Engenharia Comportamental
+ * Nenhuma dependência externa de JS necessária.
+ */
+
+// ==========================================
+// 1. CONSTANTES E CONFIGURAÇÕES
+// ==========================================
+const CITY_AVERAGE = {
+    energy: 150, // Média fictícia em Sorocaba: 150 kWh
+    water: 15    // Média fictícia em Sorocaba: 15 m³
+};
+
+// Dicionário de Economia por Eletrodoméstico (Tradução Financeira)
+const APPLIANCE_SAVINGS = {
+    shower: "Reduzir o banho em apenas 5 minutos economiza cerca de R$ 25 a R$ 35 no fim do mês.",
+    washer: "Acumular roupas para usar a máquina na capacidade máxima poupa até R$ 15 mensais de energia e água.",
+    iron: "Passar todas as roupas de uma só vez (evitando o esquenta-esfria) economiza cerca de R$ 12 mensais.",
+    ac: "Manter o ar-condicionado em 23°C e limpar os filtros regularmente pode abater até R$ 40 da sua conta."
+};
+
+// ==========================================
+// 2. SELETORES DO DOM
+// ==========================================
+const screen1 = document.getElementById('screen-1');
+const screen2 = document.getElementById('screen-2');
+const form = document.getElementById('ecoForm');
+const serviceTypeInput = document.getElementById('serviceType');
+const unitLabel = document.getElementById('unitLabel');
+const btnBack = document.getElementById('btnBack');
+
+// ==========================================
+// 3. INICIALIZAÇÃO E EVENT LISTENERS
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Altera a label da unidade de medida baseado na escolha de serviço
+    serviceTypeInput.addEventListener('change', (e) => {
+        unitLabel.innerText = e.target.value === 'energy' ? 'kWh' : 'm³';
+    });
+
+    // Submissão do Formulário
+    form.addEventListener('submit', handleFormSubmit);
+
+    // Botão Voltar
+    btnBack.addEventListener('click', resetAndGoBack);
+});
+
+// ==========================================
+// 4. FUNÇÕES PRINCIPAIS
+// ==========================================
+
+function handleFormSubmit(e) {
+    e.preventDefault();
+
+    // Captura dos dados
+    const serviceType = document.getElementById('serviceType').value;
+    const refMonth = document.getElementById('refMonth').value;
+    const consumption = parseFloat(document.getElementById('consumption').value);
+    const billTotal = parseFloat(document.getElementById('billTotal').value);
+
+    // Captura os eletrodomésticos selecionados
+    const appliances = [];
+    document.querySelectorAll('.appliance-check:checked').forEach(checkbox => {
+        appliances.push(checkbox.value);
+    });
+
+    // Criação do objeto de dados
+    const userData = {
+        serviceType,
+        refMonth,
+        consumption,
+        billTotal,
+        appliances
+    };
+
+    // Persistência no LocalStorage (Simulação de Banco de Dados)
+    localStorage.setItem('ecoMonitorData', JSON.stringify(userData));
+
+    // Renderizar Tela 2 e Navegar
+    renderAnalysis(userData);
+    switchScreen(screen1, screen2);
+}
+
+function renderAnalysis(data) {
+    const avg = CITY_AVERAGE[data.serviceType];
+    const unit = data.serviceType === 'energy' ? 'kWh' : 'm³';
+    
+    // Cálculo do comparativo
+    const diffPercent = ((data.consumption - avg) / avg) * 100;
+    
+    // Engenharia Comportamental: Regra do Semáforo
+    let statusColorClass = '';
+    let title = '';
+    let subtitle = '';
+    let behaviorTips = [];
+
+    if (diffPercent < 0) {
+        // VERDE: Abaixo da média (Reforço Positivo)
+        statusColorClass = 'status-green';
+        title = 'Excelente Trabalho! 🏆';
+        subtitle = 'Seu consumo está abaixo da média da cidade. Você é um exemplo de sustentabilidade.';
+        behaviorTips = [
+            "Mantenha seus hábitos atuais, eles estão funcionando perfeitamente.",
+            "Incentive seus vizinhos e familiares compartilhando suas estratégias.",
+            "Considere investir o valor economizado na conta de energia ou água todo mês.",
+            "Revise vedações de portas e torneiras a cada 6 meses para garantir que continuará assim."
+        ];
+    } else if (diffPercent <= 10) {
+        // AMARELO: Na média até +10% (Alerta Brando / Nudge)
+        statusColorClass = 'status-yellow';
+        title = 'Atenção ao Consumo ⚠️';
+        subtitle = 'Você está bem na média de Sorocaba, mas pequenos ajustes podem gerar grande economia.';
+        behaviorTips = [
+            "Tire aparelhos da tomada quando não estiverem em uso (o modo stand-by consome energia).",
+            "Aproveite ao máximo a iluminação e ventilação natural de sua casa durante o dia.",
+            "Reduza em 2 minutos o tempo do banho e observe a diferença no próximo mês.",
+            "Verifique se a borracha da geladeira está vedando corretamente."
+        ];
+    } else {
+        // VERMELHO: Acima da média >10% (Aversão à Perda)
+        statusColorClass = 'status-red';
+        title = 'Alerta de Desperdício! 🚨';
+        subtitle = `Seu consumo está ${Math.round(diffPercent)}% acima da média municipal. Você está perdendo dinheiro.`;
+        behaviorTips = [
+            "Aja rápido: identifique possíveis vazamentos ou fugas de energia imediatamente.",
+            "Substitua lâmpadas antigas por LEDs o mais rápido possível.",
+            "Evite usar equipamentos elétricos de aquecimento (chuveiro, ferro) no horário de pico (18h-21h).",
+            "Estabeleça uma meta familiar de reduzir o consumo em 15% para o próximo mês."
+        ];
+    }
+
+    // 1. Atualizar Card do Semáforo
+    const feedbackCard = document.getElementById('feedbackCard');
+    feedbackCard.className = `card card-custom p-4 mb-4 text-center ${statusColorClass}`;
+    document.getElementById('feedbackTitle').innerText = title;
+    document.getElementById('feedbackSubtitle').innerText = subtitle;
+
+    // 2. Atualizar Gráficos Numéricos
+    document.getElementById('userConsDisplay').innerText = `${data.consumption} ${unit}`;
+    document.getElementById('cityConsDisplay').innerText = `${avg} ${unit}`;
+    
+    let diffTextEl = document.getElementById('diffText');
+    if (diffPercent > 0) {
+        diffTextEl.innerHTML = `<span class="text-danger">▲ ${Math.round(diffPercent)}% acima da média</span>`;
+    } else {
+        diffTextEl.innerHTML = `<span class="text-success">▼ ${Math.abs(Math.round(diffPercent))}% abaixo da média</span>`;
+    }
+
+    // Barra de progresso visual
+    const progressBar = document.getElementById('progressBar');
+    let width = (data.consumption / (avg * 2)) * 100; // Limita visual a 200% da média
+    if(width > 100) width = 100;
+    progressBar.style.width = `${width}%`;
+    progressBar.className = diffPercent < 0 ? 'progress-bar bg-success' : diffPercent <= 10 ? 'progress-bar bg-warning' : 'progress-bar bg-danger';
+
+    // 3. Renderizar Tradução Financeira (Oportunidades de Economia)
+    const savingsList = document.getElementById('savingsList');
+    savingsList.innerHTML = '';
+    
+    if (data.appliances.length === 0) {
+        savingsList.innerHTML = '<li class="list-group-item bg-transparent text-muted px-0">Nenhum eletrodoméstico mapeado.</li>';
+    } else {
+        data.appliances.forEach(app => {
+            if (APPLIANCE_SAVINGS[app]) {
+                let li = document.createElement('li');
+                li.className = 'list-group-item bg-transparent px-0 border-bottom-0 py-2';
+                li.innerHTML = `✔️ ${APPLIANCE_SAVINGS[app]}`;
+                savingsList.appendChild(li);
+            }
+        });
+    }
+
+    // 4. Renderizar Dicas de Comportamento
+    const tipsList = document.getElementById('tipsList');
+    tipsList.innerHTML = '';
+    behaviorTips.forEach(tip => {
+        let li = document.createElement('li');
+        li.className = 'list-group-item';
+        li.innerText = tip;
+        tipsList.appendChild(li);
+    });
+}
+
+// Navegação entre Telas (SPA)
+function switchScreen(hideElement, showElement) {
+    hideElement.classList.remove('active');
+    setTimeout(() => {
+        showElement.classList.add('active');
+        window.scrollTo(0, 0); // Volta ao topo da página
+    }, 100);
+}
+
+// Resetar o formulário para um novo mês
+function resetAndGoBack() {
+    form.reset();
+    document.getElementById('unitLabel').innerText = 'kWh'; // Reset default
+    switchScreen(screen2, screen1);
+}
